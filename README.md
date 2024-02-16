@@ -1,8 +1,8 @@
-# CP Project README
+# Concurrency and Parallelism
 
 ## Overview
 
-This project, named "CP" (Concurrency and Parallelism), showcases different approaches to concurrency and parallelism in Python, focusing on synchronous vs. asynchronous execution, thread-based parallelism, and process-based parallelism. The project includes a startup script to set up a tmux session for an efficient development workflow, highlighting tools and practices for managing Python environments and running/debugging code in a structured manner.
+This project, Concurrency and Parallelism, showcases different approaches to concurrency and parallelism in Python, focusing on synchronous vs. asynchronous execution, thread-based parallelism, and process-based parallelism. The project includes a startup script to set up a tmux session for an efficient development workflow, highlighting tools and practices for managing Python environments and running/debugging code in a structured manner.
 
 ## Directory Structure
 
