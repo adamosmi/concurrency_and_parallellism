@@ -38,6 +38,11 @@ git clone https://github.com/adamosmi/concurrency_and_parallellism.git
 cd concurrency_and_parallellism
 ```
 
+Run this command to setup the webserver client traffic to port 80 is sent to the http://localhost:8765.
+```bash
+cp ./config/azure_lab_websocket.conf /etc/nginx/conf.d/
+```
+
 ### Running the Startup Script
 
 Before running the `startup.sh` script, make sure you have tmux installed on your system. To start the development environment, navigate to the project's root directory and execute:
