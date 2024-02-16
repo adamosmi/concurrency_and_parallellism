@@ -29,7 +29,7 @@ To install the required Python libraries, run:
 pip install requests aiohttp
 ```
 
-### Websocket Server/Client Setup
+## Websocket Server/Client Setup
 
 Clone the repository to your local machine:
 
@@ -37,7 +37,7 @@ Clone the repository to your local machine:
 git clone https://github.com/adamosmi/concurrency_and_parallellism.git
 cd concurrency_and_parallellism
 ```
-## Server
+### Server
 
 1) Edit config/azure_lab_websocket.conf to include the proper SERVER_ADDRESS.
 
@@ -61,7 +61,7 @@ pip install -r config/requirements.txt
 python3 src/websocket_server.py &
 ```
 
-## Client
+### Client
 1) Export the SERVER_ADDRESS variable.
 - Windows:
 ```powershell
@@ -77,13 +77,13 @@ export SERVER_ADDRESS="yourserver"
 pip install -r config/requirements.txt
 ```
 
-3) Run the server as a background process:
+3) Run the client as a background process:
 ```bash
 python3 src/websocket_client.py
 ```
 
 ## Dev Environment Setup
-# Running the Startup Script
+### Running the Startup Script
 
 Before running the `startup.sh` script, make sure you have tmux installed on your system. To start the development environment, navigate to the project's root directory and execute:
 
