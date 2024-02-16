@@ -14,10 +14,11 @@ URLS = [
 # Synchronous requests using requests library
 def fetch_sync(url):
     print(f"Starting {url}")
-    response = requests.get(url)
+    _ = requests.get(url)
     print(f"Finished {url}")
 
 
+# Run the synchronous process
 def run_sync():
     for url in URLS:
         fetch_sync(url)
@@ -31,6 +32,7 @@ async def fetch_async(session, url):
         print(f"Finished {url}")
 
 
+# Run the asynchronous process
 async def run_async():
     async with aiohttp.ClientSession() as session:
         tasks = [fetch_async(session, url) for url in URLS]
@@ -38,13 +40,16 @@ async def run_async():
 
 
 # Timing the synchronous function
-start_time = time.time()
+start_time = time.perf_counter()
 run_sync()
-end_time = time.time()
+end_time = time.perf_counter()
 print(f"Synchronous version took {end_time - start_time} seconds.")
+# Synchronous version took 6.5700838820011995 seconds.
+
 
 # Timing the asynchronous function
-start_time = time.time()
+start_time = time.perf_counter()
 asyncio.run(run_async())
-end_time = time.time()
+end_time = time.perf_counter()
 print(f"Asynchronous version took {end_time - start_time} seconds.")
+# Asynchronous version took 3.2167510360013694 seconds.
