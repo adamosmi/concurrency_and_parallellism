@@ -34,8 +34,8 @@ pip install requests aiohttp
 Clone the repository to your local machine:
 
 ```bash
-git clone <repository-url>
-cd <repository-path>
+git clone https://github.com/adamosmi/concurrency_and_parallellism.git
+cd concurrency_and_parallellism
 ```
 
 ### Running the Startup Script
