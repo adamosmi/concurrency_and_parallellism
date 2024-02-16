@@ -24,7 +24,7 @@ async def produce_item(queue, i):
 
 async def put_items(queue):
     # Create a list of producer coroutines
-    producers = [produce_item(queue, i) for i in range(5)]
+    producers = [produce_item(queue, i) for i in range(10)]
     # Await their completion
     await asyncio.gather(*producers)
     # Put a sentinel value in the queue to indicate the producer is done
@@ -50,4 +50,30 @@ async def main():
 t = time.perf_counter()
 asyncio.run(main())
 print(f"Time: {time.perf_counter() - t}")
-# Time: 1.0048635059974913
+
+# (venv) andrew@DESKTOP-M43FL6J:/mnt/nfs/Projects/Concurrency_and_Parallellism$ python3 ./src/async_queue.py
+# Item 0 put in queue
+# Item 1 is sleeping for 1 second(s)
+# Item 2 is sleeping for 1 second(s)
+# Item 3 put in queue
+# Item 4 put in queue
+# Item 5 is sleeping for 1 second(s)
+# Item 6 put in queue
+# Item 7 put in queue
+# Item 8 put in queue
+# Item 9 is sleeping for 1 second(s)
+# Item 0 got from queue
+# Item 3 got from queue
+# Item 4 got from queue
+# Item 6 got from queue
+# Item 7 got from queue
+# Item 8 got from queue
+# Item 1 put in queue
+# Item 2 put in queue
+# Item 5 put in queue
+# Item 9 put in queue
+# Item 1 got from queue
+# Item 2 got from queue
+# Item 5 got from queue
+# Item 9 got from queue
+# Time: 1.00401709200014
