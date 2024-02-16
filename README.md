@@ -29,7 +29,7 @@ To install the required Python libraries, run:
 pip install requests aiohttp
 ```
 
-### Setup
+### Websocket Server/Client Setup
 
 Clone the repository to your local machine:
 
@@ -37,13 +37,53 @@ Clone the repository to your local machine:
 git clone https://github.com/adamosmi/concurrency_and_parallellism.git
 cd concurrency_and_parallellism
 ```
+## Server
 
-Run this command to setup the webserver client traffic to port 80 is sent to the http://localhost:8765.
+1) Edit config/azure_lab_websocket.conf to include the proper SERVER_ADDRESS.
+
+2) Run this command to setup the webserver client traffic to port 80 is sent to the http://localhost:8765.
+
 ```bash
-cp ./config/azure_lab_websocket.conf /etc/nginx/conf.d/
+cp config/azure_lab_websocket.conf /etc/nginx/conf.d/
+```
+3) Test the config:
+```bash
+sudo nginx -t
 ```
 
-### Running the Startup Script
+4) Install dependencies:
+```bash
+pip install -r config/requirements.txt
+```
+
+5) Run the server as a background process:
+```bash
+python3 src/websocket_server.py &
+```
+
+## Client
+1) Export the SERVER_ADDRESS variable.
+- Windows:
+```powershell
+$env:SERVER_ADDRESS = "yourserver"
+```
+- Linux:
+```bash
+export SERVER_ADDRESS="yourserver"
+```
+
+2) Install dependencies:
+```bash
+pip install -r config/requirements.txt
+```
+
+3) Run the server as a background process:
+```bash
+python3 src/websocket_client.py
+```
+
+## Dev Environment Setup
+# Running the Startup Script
 
 Before running the `startup.sh` script, make sure you have tmux installed on your system. To start the development environment, navigate to the project's root directory and execute:
 
@@ -53,7 +93,7 @@ Before running the `startup.sh` script, make sure you have tmux installed on you
 
 This script initializes a tmux session with predefined windows for code editing, a REPL for interactive Python sessions, and a window for Git operations. If the session named "cp" already exists, it attempts to attach to it; otherwise, it creates a new session according to the script's configuration.
 
-### Script Details
+# Script Details
 
 - **Python IDE Window**: Opens Neovim with the `sync_vs_async_requests.py` file loaded.
 - **REPL Window**: Sets up a Python REPL for interactive testing.
