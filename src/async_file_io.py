@@ -3,29 +3,41 @@ import aiofiles
 import random
 
 
+# async def read_from_file(filename):
+#     async with aiofiles.open(filename, mode="r") as file:
+#         while True:
+#             await asyncio.sleep(random.random())
+#             content = await file.readline()
+#             print(f"reading: {content}")
+
+
 async def read_from_file(filename):
-    async with aiofiles.open(filename, mode="r") as file:
-        content = await file.read()
-        print(f"Content of {filename}:")
-        print(content)
+    while True:
+        async with aiofiles.open(filename, mode="r") as file:
+            # Read the entire file
+            content = await file.read()
+            if content:
+                print(f"reading: {content}")
+            else:
+                print("No new data. Waiting for new data...")
+        # Wait a bit before reopening the file to check for new data
+        await asyncio.sleep(random.random())
 
 
 async def generate_data(n):
     """
     Genereates an int 1 through n.
     """
-    # r = random.randint(0, 1)
-    # if r == 1:
-    #     await asyncio.sleep(1)
-    data = random.randint(1, n + 1)
+    await asyncio.sleep(random.random())
+    data = random.randint(1, n)
     return data
 
 
 async def put_data(queue):
     while True:
-        data = await generate_data(10)
+        data = await generate_data(100)
         await queue.put(data)
-        print(f"put: {data}")
+        # print(f"put: {data}")
 
 
 async def get_data(queue):
@@ -43,11 +55,14 @@ async def write_to_file(queue, filename):
 
 
 async def async_main():
+    # with open("data/example.txt", "w") as file:
+    #     file.write("First Line \n")
     queue = asyncio.Queue()
     tasks = [
-        read_from_file("data/example.txt"),
         put_data(queue),
+        # get_data(queue),
         write_to_file(queue, "data/example.txt"),
+        read_from_file("data/example.txt"),
     ]
     await asyncio.gather(*tasks)
 
