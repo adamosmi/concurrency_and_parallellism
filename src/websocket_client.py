@@ -1,35 +1,40 @@
 import os
 from dotenv import load_dotenv
-from websockets.sync.client import connect
+import websockets
 from create_dotenv import create_dotenv
+import asyncio
 
 
-# def hello(SERVER_ADDRESS):
-#     """
-#     Establishes a websocket connection to the server, sends a "Hello world!" message,
-#     and prints the response received from the server.
-#
-#     Args:
-#     - SERVER_ADDRESS (str): The address of the server to connect to.
-#     """
-#     # Establish a connection to the websocket server
-#     with websockets.sync.client.connect(f"ws://{SERVER_ADDRESS}") as websocket:
-#         # Send a message to the server
-#         websocket.send("Hello world!")
-#         # Wait for and receive a response from the server
-#         message = websocket.recv()
-#         # Print the received message
-#         print(f"Received: {message}")
+# define async input function
+async def async_input(prompt):
+    return await asyncio.get_event_loop().run_in_executor(None, input, prompt)
 
 
-def client_handler(SERVER_ADDRESS):
+async def send_message(websocket):
+    # message = await async_input(prompt="Message:\n")
+    for i in range(1000):
+        message = f"Test message {str(i)}"
+        await websocket.send(message)
+        await asyncio.sleep(1)
+        print(f"Message sent:\n{message}")
+
+
+async def recieve_messages(websocket):
+    while True:
+        try:
+            message = await websocket.recv()
+            print(f"Message recieved:\n{message}")
+        except websockets.ConnectionClosed as e:
+            print(f"Connection closed: {e.reason}")
+            break
+
+
+async def client_handler(SERVER_ADDRESS):
     # connect to server
-    with connect(f"ws://{SERVER_ADDRESS}") as websocket:
+    async with websockets.connect(f"ws://{SERVER_ADDRESS}") as websocket:
         # send server a message
-        while True:
-            message = input("Message:\n")
-            websocket.send(message)
-            print("Message sent\n")
+        tasks = [send_message(websocket), recieve_messages(websocket)]
+        await asyncio.gather(*tasks)
 
 
 # Main loop to attempt to connect to the server
@@ -50,7 +55,7 @@ while True:
 
         # Attempt to send a message to the server
         # hello(SERVER_ADDRESS=SERVER_ADDRESS)
-        client_handler(SERVER_ADDRESS=SERVER_ADDRESS)
+        asyncio.run(client_handler(SERVER_ADDRESS=SERVER_ADDRESS))
 
         # If successful, break out of the loop
         break

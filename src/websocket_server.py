@@ -9,11 +9,11 @@ connected = set()
 async def handler(websocket):
     # add the connected client
     connected.add(websocket)
-    # listen for message from websocket
-    message = await websocket.recv()
-    print(f"Message recieved:\n{message}")
-    # broadcast any message received to
-    websockets.broadcast(websockets=connected, message=message)
+    # listen for messages from websocket
+    async for message in websocket:
+        print(f"Message recieved:\n{message}")
+        # broadcast any message received to
+        await websockets.broadcast(websockets=connected, message=message)
 
 
 # main
