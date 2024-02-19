@@ -11,6 +11,7 @@ async def handler(websocket):
     connected.add(websocket)
     # listen for message from websocket
     message = await websocket.recv()
+    print(f"Message recieved:\n{message}")
     # broadcast any message received to
     websockets.broadcast(websockets=connected, message=message)
 
