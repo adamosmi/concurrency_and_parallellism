@@ -11,12 +11,9 @@ async def async_input(prompt):
 
 
 async def send_message(websocket):
-    # message = await async_input(prompt="Message:\n")
-    for i in range(1000):
-        message = f"Test message {str(i)}"
-        await websocket.send(message)
-        await asyncio.sleep(1)
-        print(f"Message sent:\n{message}")
+    message = await async_input(prompt="Message:\n")
+    await websocket.send(message)
+    print(f"Message sent:\n{message}")
 
 
 async def recieve_messages(websocket):
