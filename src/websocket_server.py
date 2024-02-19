@@ -5,6 +5,11 @@ import websockets
 connected = set()
 
 
+async def broadcast(message):
+    for websocket in connected:
+        await websocket.send(message)
+
+
 # handle connected clients
 async def handler(websocket):
     # add the connected client
@@ -13,7 +18,7 @@ async def handler(websocket):
     async for message in websocket:
         print(f"Message recieved:\n{message}")
         # broadcast any message received to
-        await websockets.broadcast(websockets=connected, message=message)
+        await broadcast(message)
 
 
 # main
