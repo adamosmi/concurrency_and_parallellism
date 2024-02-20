@@ -146,11 +146,12 @@ class Game:
             )
 
             # sync back to server
-            self.control_player.set_pos(
-                pos=await self.receive_position(
-                    id=self.control_player.id, websocket=self.websocket
+            for player in self.players:
+                player.set_pos(
+                    pos=await self.receive_position(
+                        id=player.id, websocket=self.websocket
+                    )
                 )
-            )
 
             # flip() the display to put your work on screen
             pygame.display.flip()
