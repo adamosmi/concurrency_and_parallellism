@@ -9,6 +9,7 @@ import json
 class AsyncClient:
     def __init__(self, server_address):
         self.name = input("Enter username (public):\n")
+        self.clear_screen()
         self.server_address = server_address
         self.msgs_sent = []
         self.msgs_recieved = []
@@ -20,7 +21,7 @@ class AsyncClient:
     # send message and store in msgs_sent
     async def send_message(self, websocket):
         while True:
-            message_text = await self.async_input(prompt=f"<{self.name}>: ")
+            message_text = await self.async_input(prompt=f"(you) {self.name}:\n")
             message = {"name": self.name, "message_text": message_text}
             await websocket.send(json.dumps(message))
             self.msgs_sent.append(message_text)
@@ -29,11 +30,19 @@ class AsyncClient:
     async def recieve_messages(self, websocket):
         while True:
             try:
+                # get message
                 message_text = await websocket.recv()
+                # load message string to dict
                 message = json.loads(message_text)
-                if message.get("name") != self.name:
-                    self.msgs_recieved.append(message_text)
-                    print(message.get("message_text"))
+                # store message
+                self.msgs_recieved.append(message)
+                # output message
+                self.clear_screen()  # clear prior messages
+                for msg in self.msgs_recieved[
+                    -len(self.msgs_recieved) :
+                ]:  # show only last n messages
+                    print(msg.get("name") + ": " + msg.get("message_text"))
+                print(f"(you) {self.name}:")
             except websockets.ConnectionClosed as e:
                 print(f"Connection closed: {e.reason}")
                 break
@@ -45,6 +54,10 @@ class AsyncClient:
             # send and receive messages from the server asynchronously
             tasks = [self.send_message(websocket), self.recieve_messages(websocket)]
             await asyncio.gather(*tasks)
+
+    # clear screen of previous output
+    def clear_screen(self):
+        os.system("cls" if os.name == "nt" else "clear")
 
 
 # Main loop to attempt to connect to the server
