@@ -26,6 +26,7 @@ async def handler(websocket):
     # send id back to newly connected client
     new_connection_message = {"type": "new_connection", "id": id}
     await websocket.send(json.dumps(new_connection_message))
+    print(json.dumps(new_connection_message))
 
     try:
         # listen for messages from websocket
