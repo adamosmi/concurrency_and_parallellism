@@ -8,6 +8,76 @@ import asyncio
 import json
 
 
+class GameManager:
+    """
+    Game context manager.
+    Holds the connection to the websocket and queue for memory.
+    The game instance is managed here to prevent the following error from attempting to call multiple async functions within the game loop:
+    Connection failed: cannot call recv while another coroutine is already waiting for the next message. Retry...
+
+
+    Order of operations:
+        1) Read server to get server messages
+        2) Add server messages to game queue
+        3) Update game state
+        4) Add game update messages to server queue
+        5) Send server queue messages to server
+    """
+
+    def __init__(self, server_address):
+        self.server_address = server_address
+        self.game_in_queue = asyncio.Queue()
+        self.game_out_queue = asyncio.Queue()
+
+    async def manage_game(self):
+        # define game instance
+        self.game = Game(
+            game_in_queue=self.game_in_queue, game_out_queue=self.game_out_queue
+        )
+        # connect to server
+        async with websockets.connect(f"ws://{self.server_address}") as websocket:
+            self.websocket = websocket
+            # send and receive messages from the server asynchronously
+            tasks = [
+                self.get_messages(),  # move messages from server to game_in_queue
+                self.game.process_in_queue(),  # continously look for new players, player movements in game_in_queue
+                self.game.start_game(),  # run the game continously, outputing new player movements in game_out_queue
+                # self.game.process_out_queue(),
+                self.send_messages(),  # move messages from game_out_queue to server
+            ]
+            await asyncio.gather(*tasks)
+
+    async def get_messages(self):
+        """
+        Listen for messages on server and add them to queue.
+        """
+        print("get_messages")
+        while True:
+            try:
+                message_text = await self.websocket.recv()
+                print(f"Message received from server: {message_text}")
+                await self.game_in_queue.put(message_text)
+                print(f"Message added to game_in_queue: {message_text}")
+            except Exception as e:
+                print(f"Exception: {e}")
+
+    async def send_messages(self):
+        """
+        Listen for messages on queue and add them to server.
+        """
+        print("send_messages")
+        while True:
+            try:
+                message_text = await self.game_out_queue.get()
+                print(f"Message received from game_out_queue: {message_text}")
+                # await self.game_out_queue.put(message_text)
+                # print(f"Message added back to game_out_queue: {message_text}")
+                await self.websocket.send(message_text)
+                print(f"Message added to server: {message_text}")
+            except Exception as e:
+                print(f"Exception: {e}")
+
+
 class Player:
     def __init__(self, id, pos):
         self.id = id
@@ -22,9 +92,19 @@ class Player:
 
 
 class Game:
-    def __init__(self, server_address):
-        # server address
-        self.server_address = server_address
+    def __init__(self, game_in_queue, game_out_queue):
+        # type check
+        assert isinstance(
+            game_in_queue, asyncio.Queue
+        ), "Must provide server asyncio.Queue to initialize Game. Game is dependent on GameManager, which provides the queue."
+
+        assert isinstance(
+            game_out_queue, asyncio.Queue
+        ), "Must provide game asyncio.Queue to initialize Game. Game is dependent on GameManager, which provides the queue."
+
+        # server connection
+        self.game_in_queue = game_in_queue
+        self.game_out_queue = game_out_queue
 
         # game vars
         self.screen = pygame.display.set_mode((1280, 720))
@@ -36,36 +116,67 @@ class Game:
         )
 
         # define intial player
-        self.players = []
+        self.control_player = None
+        self.players = {}
 
-    async def get_session_id(self):
+    async def process_in_queue(self):
+        """
+        Read queue and update game state
+        """
+        print("process_in_queue")
         while True:
             try:
-                # get message
-                message_text = await self.websocket.recv()
-                # load message string to dict
+                message_text = await self.game_in_queue.get()
+                print(f"Message received from game_in_queue: {message_text}")
                 message = json.loads(message_text)
-                type = message.get("type")
-                if type == "new_connection":
-                    return message.get("id")
+                message_type = message.get("type")
+                # server generated messages
+                if message_type == "new_connection":
+                    await self.manage_new_connection_message(message)
+                # client generated messages
+                elif message_type == "player_move":
+                    await self.manage_player_move_message(message)
                 else:
                     continue
 
-            except websockets.ConnectionClosed as e:
-                print(f"Connection closed: {e.reason}")
+            except Exception as e:
+                print(f"Exception: {e}")
 
-    # calls send and receive message functions, and start the game
-    async def client_handler(self):
-        # connect to server
-        async with websockets.connect(f"ws://{self.server_address}") as websocket:
-            self.websocket = websocket
-            # send and receive messages from the server asynchronously
-            tasks = [
-                self.start_game(),  # line added for Game class
-            ]
-            await asyncio.gather(*tasks)
+    async def manage_new_connection_message(self, message):
+        print("managing new connection")
+        id = message.get("id")
+        # check to see if control_player is set
+        if self.control_player is None:
+            # if not, set one
+            self.control_player = Player(id=id, pos=self.init_player_pos)
+            self.players[id] = self.control_player
+
+        # check to see if other players joined the game
+        if self.control_player.id == int(id):
+            pass
+        else:
+            # if other player joined the game, add to self.players
+            self.players[id] = Player(
+                id=id, pos=self.init_player_pos
+            )  # spawn at initial position, will be updated next frame
+
+    async def manage_player_move_message(self, message):
+        """
+        "player_move" type messages only possible after "new_connection" type messages.
+        """
+        print("managing player move")
+        id = message.get("id")
+        player_pos_x = message.get("pos_x")
+        player_pos_y = message.get("pos_y")
+        player_ref = self.players[id]
+        player_ref.pos = pygame.Vector2(player_pos_x, player_pos_y)
+        self.players[id] = player_ref
+        print(f"Position updated: id: {id}, x: {player_pos_x}, y: {player_pos_x}")
 
     async def calc_position(self, pos, keys, dt):
+        """
+        Given a position and keys pressed, return new position.
+        """
         player_pos = pos.copy()  # make a copy to avoid unintentional updates
         if keys[pygame.K_w]:
             player_pos.y -= 300 * dt
@@ -78,7 +189,11 @@ class Game:
         return player_pos
 
     # send position, no loop because is only called after updating once per frame
-    async def send_position(self, id, pos, websocket):
+    async def send_position(self, id, pos):
+        """
+        Send game position to queue.
+        """
+        print("send_position")
         # while True:
         player_pos_x = pos.x
         player_pos_y = pos.y
@@ -88,34 +203,15 @@ class Game:
             "pos_x": player_pos_x,
             "pos_y": player_pos_y,
         }
-        await websocket.send(json.dumps(message))
-
-    # receive position, continuously running proccess alongside the game
-    async def receive_position(self, id, websocket):
-        while True:
-            try:
-                # get message
-                message_text = await websocket.recv()
-                # load message string to dict
-                message = json.loads(message_text)
-                type = message.get("type")
-                player_id = message.get("id")
-                if (type == "player_move") and (int(player_id) == int(id)):
-                    player_pos_x = message.get("pos_x")
-                    player_pos_y = message.get("pos_y")
-                    print(f"x: {player_pos_x}, y: {player_pos_x}")
-                    return pygame.Vector2(player_pos_x, player_pos_y)
-                else:
-                    continue
-
-            except websockets.ConnectionClosed as e:
-                print(f"Connection closed: {e.reason}")
+        await self.game_out_queue.put(json.dumps(message))
+        print(f"Message added to game_out_queue: {json.dumps(message)}")
 
     async def game_loop(self):
-        # init vars that can't be init in __init__ due to async
-        self.session_id = await self.get_session_id()
-        self.control_player = Player(id=self.session_id, pos=self.init_player_pos)
-        self.players.append(self.control_player)
+        """
+        Core game implementation.
+        """
+        # init vars that can't be initialized in __init__ due to async
+        print("game_loop")
 
         # poll for events
         while self.running:
@@ -125,33 +221,34 @@ class Game:
                     self.running = False
 
             # fill the screen with a color to wipe away anything from last frame
+            print("color screen")
             self.screen.fill("purple")
 
             # draw each player
-            for player in self.players:
+            print("draw players")
+            print(self.players)
+            for player in self.players.values():
+                print(f"Drawing player: {player.id}")
                 player.draw(screen=self.screen)
 
+            print("press key")
             keys = pygame.key.get_pressed()
+            print(
+                f"w: {keys[pygame.K_w]}, a: {keys[pygame.K_a]}, s: {keys[pygame.K_s]}, d: {keys[pygame.K_d]}"
+            )
 
+            print("update position")
             # calculate updated position for the player being controlled
             updated_player_pos = await self.calc_position(
                 pos=self.control_player.pos, keys=keys, dt=self.dt
             )
 
-            # post updated pos to server
-            await self.send_position(
-                id=self.control_player.id,
-                pos=updated_player_pos,
-                websocket=self.websocket,
-            )
+            # post updated pos to queue
+            print("send position")
+            await self.send_position(id=self.control_player.id, pos=updated_player_pos)
 
-            # sync back to server
-            for player in self.players:
-                player.set_pos(
-                    pos=await self.receive_position(
-                        id=player.id, websocket=self.websocket
-                    )
-                )
+            # sync back to queue happening in process_in_queue, async
+            # new positions being loaded from server
 
             # flip() the display to put your work on screen
             pygame.display.flip()
@@ -159,11 +256,14 @@ class Game:
             # limits FPS to 60
             # dt is delta time in seconds since last frame, used for framerate-
             # independent physics.
-            self.dt = self.clock.tick(60) / 1000
+            self.dt = self.clock.tick(1) / 1000
 
         pygame.quit()
 
     async def start_game(self):
+        """
+        Run the game.
+        """
         # pygame setup
         pygame.init()
         await self.game_loop()
@@ -183,10 +283,10 @@ while True:
         load_dotenv(dotenv_path=dotenv_fp, override=True)
         # Retrieve the server address from the environment variables
         SERVER_ADDRESS = os.getenv("SERVER_ADDRESS")
-        game = Game(server_address=SERVER_ADDRESS)
+        game_manager = GameManager(server_address=SERVER_ADDRESS)
 
         # Attempt to send a message to the server
-        asyncio.run(game.client_handler())
+        asyncio.run(game_manager.manage_game())
 
         # If successful, break out of the loop
         break
