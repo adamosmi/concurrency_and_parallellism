@@ -36,8 +36,23 @@ class Game:
         )
 
         # define intial player
-        self.control_player = Player(id=1, pos=self.init_player_pos)
-        self.players = [self.control_player]
+        self.players = []
+
+    async def get_session_id(self):
+        while True:
+            try:
+                # get message
+                message_text = await self.websocket.recv()
+                # load message string to dict
+                message = json.loads(message_text)
+                type = message.get("type")
+                if type == "new_connection":
+                    return message.get("id")
+                else:
+                    continue
+
+            except websockets.ConnectionClosed as e:
+                print(f"Connection closed: {e.reason}")
 
     # calls send and receive message functions, and start the game
     async def client_handler(self):
@@ -67,7 +82,12 @@ class Game:
         # while True:
         player_pos_x = pos.x
         player_pos_y = pos.y
-        message = {"id": id, "pos_x": player_pos_x, "pos_y": player_pos_y}
+        message = {
+            "type": "player_move",
+            "id": id,
+            "pos_x": player_pos_x,
+            "pos_y": player_pos_y,
+        }
         await websocket.send(json.dumps(message))
 
     # receive position, continuously running proccess alongside the game
@@ -78,8 +98,9 @@ class Game:
                 message_text = await websocket.recv()
                 # load message string to dict
                 message = json.loads(message_text)
+                type = message.get("type")
                 player_id = message.get("id")
-                if int(player_id) == int(id):
+                if (type == "player_move") and (int(player_id) == int(id)):
                     player_pos_x = message.get("pos_x")
                     player_pos_y = message.get("pos_y")
                     print(f"x: {player_pos_x}, y: {player_pos_x}")
@@ -91,6 +112,11 @@ class Game:
                 print(f"Connection closed: {e.reason}")
 
     async def game_loop(self):
+        # init vars that can't be init in __init__ due to async
+        self.session_id = await self.get_session_id()
+        self.control_player = Player(id=self.session_id, pos=self.init_player_pos)
+        self.players.append(self.control_player)
+
         # poll for events
         while self.running:
             # pygame.QUIT event means the user clicked X to close your window
