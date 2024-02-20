@@ -62,9 +62,15 @@ class AsyncClient:
         os.system("cls" if os.name == "nt" else "clear")
 
 
+class Player:
+    def __init__(self):
+        self.pos = None
+        self.id = None
+
+
 class Game(AsyncClient):
     def __init__(self, server_address):
-        super().__init__(self)
+        super().__init__(server_address)
         self.players = {}
         # game vars
         self.screen = pygame.display.set_mode((1280, 720))
@@ -81,16 +87,16 @@ class Game(AsyncClient):
     async def client_handler(self):
         # connect to server
         async with websockets.connect(f"ws://{self.server_address}") as websocket:
+            self.websocket = websocket
             # send and receive messages from the server asynchronously
             tasks = [
-                self.send_message(websocket),
-                self.recieve_messages(websocket),
+                # self.receive_position(self.websocket),
                 self.start_game(),  # line added for Game class
             ]
             await asyncio.gather(*tasks)
 
     async def calc_position(self, pos, keys, dt):
-        player_pos = pos
+        player_pos = pos.copy()  # make a copy to avoid unintentional updates
         if keys[pygame.K_w]:
             player_pos.y -= 300 * dt
         if keys[pygame.K_s]:
@@ -101,12 +107,30 @@ class Game(AsyncClient):
             player_pos.x += 300 * dt
         return player_pos
 
+    # send position, no loop because is only called after updating once per frame
     async def send_position(self, pos, websocket):
-        while True:
-            player_pos_x = pos.x
-            player_pos_y = pos.y
-            message = {"id": self.id, "pos_x": player_pos_x, "pos_y": player_pos_y}
-            await websocket.send(json.dumps(message))
+        # while True:
+        player_pos_x = pos.x
+        player_pos_y = pos.y
+        message = {"id": self.id, "pos_x": player_pos_x, "pos_y": player_pos_y}
+        await websocket.send(json.dumps(message))
+
+    # receive position, continuously running proccess alongside the game
+    async def receive_position(self, websocket):
+        try:
+            # get message
+            message_text = await websocket.recv()
+            # load message string to dict
+            message = json.loads(message_text)
+            player_id = message.get("id")
+            player_pos_x = message.get("pos_x")
+            player_pos_y = message.get("pos_y")
+
+            print(f"x: {player_pos_x}, y: {player_pos_x}")
+            return pygame.Vector2(player_pos_x, player_pos_y)
+
+        except websockets.ConnectionClosed as e:
+            print(f"Connection closed: {e.reason}")
 
     async def set_position(self, id, pos, keys, dt):
         player_pos = pos
@@ -128,19 +152,38 @@ class Game(AsyncClient):
                 if event.type == pygame.QUIT:
                     self.running = False
 
+            # get current pos
+            player_pos = self.players.get(self.id, self.init_player_pos)
+
             # fill the screen with a color to wipe away anything from last frame
             self.screen.fill("purple")
 
-            pygame.draw.circle(
-                self.screen, "red", self.players.get(1, self.init_player_pos), 40
-            )
+            pygame.draw.circle(self.screen, "red", player_pos, 40)
 
             keys = pygame.key.get_pressed()
-            await self.set_position(
-                id=1,
-                pos=self.players.get(1, self.init_player_pos),
-                keys=keys,
-                dt=self.dt,
+            print(
+                f"w: {keys[pygame.K_w]}, a: {keys[pygame.K_a]}, s: {keys[pygame.K_s]}, d: {keys[pygame.K_d]}"
+            )
+            print(f"dt: {self.dt}")
+
+            # await self.set_position(
+            #     id=1,
+            #     pos=self.players.get(1, self.init_player_pos),
+            #     keys=keys,
+            #     dt=self.dt,
+            # )
+
+            # calculate updated pos
+            player_pos = await self.calc_position(
+                pos=player_pos, keys=keys, dt=self.dt
+            )  # this just prepares calculation
+
+            # # post updated pos to server
+            await self.send_position(pos=player_pos, websocket=self.websocket)
+
+            # sync back to server
+            self.players[self.id] = await self.receive_position(
+                websocket=self.websocket
             )
 
             # flip() the display to put your work on screen
@@ -176,7 +219,7 @@ while True:
         game = Game(server_address=SERVER_ADDRESS)
 
         # Attempt to send a message to the server
-        asyncio.run(game.start_game())
+        asyncio.run(game.client_handler())
 
         # If successful, break out of the loop
         break
