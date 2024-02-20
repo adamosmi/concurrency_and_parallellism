@@ -3,6 +3,7 @@ from dotenv import load_dotenv
 import websockets
 from create_dotenv import create_dotenv
 import asyncio
+import json
 
 
 class AsyncClient:
@@ -20,23 +21,28 @@ class AsyncClient:
     async def send_message(self, websocket):
         while True:
             message_text = await self.async_input(prompt=f"<{self.name}>: ")
-            await websocket.send(f"{self.name}: {message_text}")
+            message = {"name": self.name, "message_text": message_text}
+            await websocket.send(json.dumps(message))
             self.msgs_sent.append(message_text)
 
+    # receive messages and store in msgs_received, excluding own messages sent
     async def recieve_messages(self, websocket):
         while True:
             try:
                 message_text = await websocket.recv()
-                self.msgs_recieved.append(message_text)
-                print(f"\n{message_text}")
+                message = json.loads(message_text)
+                if message.get("name") != self.name:
+                    self.msgs_recieved.append(message_text)
+                    print(message.get("message_text"))
             except websockets.ConnectionClosed as e:
                 print(f"Connection closed: {e.reason}")
                 break
 
+    # calls send and receive message functions
     async def client_handler(self):
         # connect to server
         async with websockets.connect(f"ws://{self.server_address}") as websocket:
-            # send server a message
+            # send and receive messages from the server asynchronously
             tasks = [self.send_message(websocket), self.recieve_messages(websocket)]
             await asyncio.gather(*tasks)
 
@@ -59,7 +65,6 @@ while True:
         client = AsyncClient(server_address=SERVER_ADDRESS)
 
         # Attempt to send a message to the server
-        # hello(SERVER_ADDRESS=SERVER_ADDRESS)
         asyncio.run(client.client_handler())
 
         # If successful, break out of the loop
