@@ -19,17 +19,16 @@ class AsyncClient:
     # send message and store in msgs_sent
     async def send_message(self, websocket):
         while True:
-            message_text = await self.async_input(prompt="Message:\n")
+            message_text = await self.async_input(prompt=f"<{self.name}>: ")
             await websocket.send(f"{self.name}: {message_text}")
             self.msgs_sent.append(message_text)
-            print(f"Message sent:\n{message_text}")
 
     async def recieve_messages(self, websocket):
         while True:
             try:
                 message_text = await websocket.recv()
                 self.msgs_recieved.append(message_text)
-                print(f"Message recieved:\n{message_text}")
+                print(f"\n{message_text}")
             except websockets.ConnectionClosed as e:
                 print(f"Connection closed: {e.reason}")
                 break
