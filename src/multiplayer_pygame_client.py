@@ -103,7 +103,7 @@ class Game:
 
             # draw each player
             for player in self.players:
-                pygame.draw.circle(self.screen, player.color, player.pos, 40)
+                player.draw(screen=self.screen)
 
             keys = pygame.key.get_pressed()
 
