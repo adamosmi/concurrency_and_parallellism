@@ -7,13 +7,14 @@ import asyncio
 
 # define async input function
 async def async_input(prompt):
-    return await asyncio.get_event_loop().run_in_executor(None, input, prompt)
+    return await asyncio.to_thread(input, prompt)
 
 
 async def send_message(websocket):
-    message = await async_input(prompt="Message:\n")
-    await websocket.send(message)
-    print(f"Message sent:\n{message}")
+    while True:
+        message = await async_input(prompt="Message:\n")
+        await websocket.send(message)
+        print(f"Message sent:\n{message}")
 
 
 async def recieve_messages(websocket):
