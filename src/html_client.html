@@ -1,0 +1,66 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>WebSocket & Canvas Circle Control</title>
+</head>
+<body>
+    <canvas id="gameCanvas" width="800" height="600"></canvas>
+    <script>
+        var canvas = document.getElementById('gameCanvas');
+        var ctx = canvas.getContext('2d');
+        var socket = new WebSocket('ws://52.151.251.63');
+        var myId = null; // Variable to store the assigned ID
+        var circles = {}; // Object to keep track of all circles
+
+        // Function to draw a circle
+        function drawCircle(x, y) {
+            ctx.beginPath();
+            ctx.arc(x, y, 50, 0, 2 * Math.PI); // Draw a circle with a radius of 50
+            ctx.fillStyle = 'red';
+            ctx.fill();
+        }
+
+        // Function to update and redraw all circles
+        function updateCanvas() {
+            ctx.clearRect(0, 0, canvas.width, canvas.height); // Clear the canvas
+            for (var id in circles) {
+                drawCircle(circles[id].x, circles[id].y);
+            }
+        }
+
+        // Event listener for WebSocket messages
+        socket.addEventListener('message', function(event) {
+            var data = JSON.parse(event.data);
+            if (data.type === 'new_connection') {
+                myId = data.id; // Store the assigned ID
+                circles[myId] = { x: 0, y: 0 }; // Initialize position
+            } else if (data.type === 'update_position') {
+                circles[data.id] = { x: data.x, y: data.y };
+                updateCanvas(); // Redraw all circles with the updated positions
+            }
+        });
+
+        // Listen for keydown events to move the circle
+        document.addEventListener('keydown', function(event) {
+            if (myId === null) return; // Do nothing if no ID is assigned yet
+
+            const speed = 5; // Speed of the circle movement
+            switch (event.key) {
+                case 'w': circles[myId].y -= speed; break; // Move up
+                case 'a': circles[myId].x -= speed; break; // Move left
+                case 's': circles[myId].y += speed; break; // Move down
+                case 'd': circles[myId].x += speed; break; // Move right
+            }
+            updateCanvas(); // Redraw all circles with the updated positions
+
+            // Send the updated position to the server
+            socket.send(JSON.stringify({
+                type: 'update_position',
+                id: myId,
+                x: circles[myId].x,
+                y: circles[myId].y
+            }));
+        });
+    </script>
+</body>
+</html>
