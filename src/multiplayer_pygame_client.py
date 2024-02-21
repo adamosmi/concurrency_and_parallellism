@@ -34,6 +34,7 @@ class GameManager:
         self.game = Game(
             game_in_queue=self.game_in_queue, game_out_queue=self.game_out_queue
         )
+
         # connect to server
         async with websockets.connect(f"ws://{self.server_address}") as websocket:
             self.websocket = websocket
@@ -41,8 +42,8 @@ class GameManager:
             tasks = [
                 self.get_messages(),  # move messages from server to game_in_queue
                 self.game.process_in_queue(),  # continously look for new players, player movements in game_in_queue
-                self.game.start_game(),  # run the game continously, outputing new player movements in game_out_queue
-                # self.game.process_out_queue(),
+                self.game.async_run_game(),  # run the game continously, outputing new player movements in to_game_out_queue list
+                self.game.process_out_queue(),  # continously look for entries in to_game_out_queue and add to game_out_queue
                 self.send_messages(),  # move messages from game_out_queue to server
             ]
             await asyncio.gather(*tasks)
@@ -93,16 +94,6 @@ class Player:
 
 class Game:
     def __init__(self, game_in_queue, game_out_queue):
-        # type check
-        assert isinstance(
-            game_in_queue, asyncio.Queue
-        ), "Must provide server asyncio.Queue to initialize Game. Game is dependent on GameManager, which provides the queue."
-
-        assert isinstance(
-            game_out_queue, asyncio.Queue
-        ), "Must provide game asyncio.Queue to initialize Game. Game is dependent on GameManager, which provides the queue."
-
-        # server connection
         self.game_in_queue = game_in_queue
         self.game_out_queue = game_out_queue
 
@@ -118,6 +109,26 @@ class Game:
         # define intial player
         self.control_player = None
         self.players = {}
+
+        # to game_out_queue
+        self.to_game_out_queue = []
+
+    async def process_out_queue(self):
+        """
+        Read game state and update queue
+        """
+        print("process_out_queue")
+        while True:
+            try:
+                if len(self.to_game_out_queue) == 0:
+                    await asyncio.sleep(self.dt)
+                else:
+                    message = self.to_game_out_queue.pop()
+                    await self.game_out_queue.put(json.dumps(message))
+                    print(f"Message added to game_out_queue: {json.dumps(message)}")
+
+            except Exception as e:
+                print(f"Exception: {e}")
 
     async def process_in_queue(self):
         """
@@ -173,7 +184,7 @@ class Game:
         self.players[id] = player_ref
         print(f"Position updated: id: {id}, x: {player_pos_x}, y: {player_pos_x}")
 
-    async def calc_position(self, pos, keys, dt):
+    def calc_position(self, pos, keys, dt):
         """
         Given a position and keys pressed, return new position.
         """
@@ -189,12 +200,11 @@ class Game:
         return player_pos
 
     # send position, no loop because is only called after updating once per frame
-    async def send_position(self, id, pos):
+    def stage_position(self, id, pos):
         """
-        Send game position to queue.
+        Stage player postion to be sent.
         """
         print("send_position")
-        # while True:
         player_pos_x = pos.x
         player_pos_y = pos.y
         message = {
@@ -203,15 +213,14 @@ class Game:
             "pos_x": player_pos_x,
             "pos_y": player_pos_y,
         }
-        await self.game_out_queue.put(json.dumps(message))
-        print(f"Message added to game_out_queue: {json.dumps(message)}")
+        self.to_game_out_queue.append(message)
 
-    async def game_loop(self):
+    def run_game(self):
         """
         Core game implementation.
         """
-        # init vars that can't be initialized in __init__ due to async
         print("game_loop")
+        pygame.init()
 
         # poll for events
         while self.running:
@@ -227,25 +236,26 @@ class Game:
             # draw each player
             print("draw players")
             print(self.players)
-            for player in self.players.values():
-                print(f"Drawing player: {player.id}")
-                player.draw(screen=self.screen)
+            if len(self.players) > 0:
+                for player in self.players.values():
+                    print(f"Drawing player: {player.id}")
+                    player.draw(screen=self.screen)
 
-            print("press key")
-            keys = pygame.key.get_pressed()
-            print(
-                f"w: {keys[pygame.K_w]}, a: {keys[pygame.K_a]}, s: {keys[pygame.K_s]}, d: {keys[pygame.K_d]}"
-            )
+                print("press key")
+                keys = pygame.key.get_pressed()
+                print(
+                    f"w: {keys[pygame.K_w]}, a: {keys[pygame.K_a]}, s: {keys[pygame.K_s]}, d: {keys[pygame.K_d]}"
+                )
 
-            print("update position")
-            # calculate updated position for the player being controlled
-            updated_player_pos = await self.calc_position(
-                pos=self.control_player.pos, keys=keys, dt=self.dt
-            )
+                print("calc updated position")
+                # calculate updated position for the player being controlled
+                updated_player_pos = self.calc_position(
+                    pos=self.control_player.pos, keys=keys, dt=self.dt
+                )
 
-            # post updated pos to queue
-            print("send position")
-            await self.send_position(id=self.control_player.id, pos=updated_player_pos)
+                # post updated pos to queue
+                print("stage position")
+                self.stage_position(id=self.control_player.id, pos=updated_player_pos)
 
             # sync back to queue happening in process_in_queue, async
             # new positions being loaded from server
@@ -260,13 +270,8 @@ class Game:
 
         pygame.quit()
 
-    async def start_game(self):
-        """
-        Run the game.
-        """
-        # pygame setup
-        pygame.init()
-        await self.game_loop()
+    async def async_run_game(self):
+        await asyncio.to_thread(self.run_game())
 
 
 while True:
